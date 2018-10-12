@@ -1,7 +1,9 @@
 export default function (Vue) {
+  // 获取当前Vue 的主要版本 2.x 还是 1.x
   const version = Number(Vue.version.split('.')[0])
 
   if (version >= 2) {
+    // 2.x 版本 使用
     Vue.mixin({ beforeCreate: vuexInit })
   } else {
     // override init and inject vuex init procedure

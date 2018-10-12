@@ -1,31 +1,41 @@
+/*
+    定义了组件绑定的辅助函数。 如 ...mapGetters({})
+
+
+*/
+
+
+// /**
+//  * Reduce the code which written in Vue.js for getting the state.
+//  * @param {String} [namespace] - Module's namespace
+//  * @param {Object|Array} states # Object's item can be a function which accept state and getters for param, you can do something for state and getters in it.
+//  * @param {Object}
+//  */
 /**
- * Reduce the code which written in Vue.js for getting the state.
- * @param {String} [namespace] - Module's namespace
- * @param {Object|Array} states # Object's item can be a function which accept state and getters for param, you can do something for state and getters in it.
- * @param {Object}
+ * 
  */
 export const mapState = normalizeNamespace((namespace, states) => {
-  const res = {}
-  normalizeMap(states).forEach(({ key, val }) => {
-    res[key] = function mappedState () {
-      let state = this.$store.state
-      let getters = this.$store.getters
-      if (namespace) {
-        const module = getModuleByNamespace(this.$store, 'mapState', namespace)
-        if (!module) {
-          return
-        }
-        state = module.context.state
-        getters = module.context.getters
-      }
-      return typeof val === 'function'
-        ? val.call(this, state, getters)
-        : state[val]
-    }
-    // mark vuex getter for devtools
-    res[key].vuex = true
-  })
-  return res
+    const res = {}
+    normalizeMap(states).forEach(({ key, val }) => {
+        res[key] = function mappedState() {
+                let state = this.$store.state
+                let getters = this.$store.getters
+                if (namespace) {
+                    const module = getModuleByNamespace(this.$store, 'mapState', namespace)
+                    if (!module) {
+                        return
+                    }
+                    state = module.context.state
+                    getters = module.context.getters
+                }
+                return typeof val === 'function' ?
+                    val.call(this, state, getters) :
+                    state[val]
+            }
+            // mark vuex getter for devtools
+        res[key].vuex = true
+    })
+    return res
 })
 
 /**
@@ -35,24 +45,24 @@ export const mapState = normalizeNamespace((namespace, states) => {
  * @return {Object}
  */
 export const mapMutations = normalizeNamespace((namespace, mutations) => {
-  const res = {}
-  normalizeMap(mutations).forEach(({ key, val }) => {
-    res[key] = function mappedMutation (...args) {
-      // Get the commit method from store
-      let commit = this.$store.commit
-      if (namespace) {
-        const module = getModuleByNamespace(this.$store, 'mapMutations', namespace)
-        if (!module) {
-          return
+    const res = {}
+    normalizeMap(mutations).forEach(({ key, val }) => {
+        res[key] = function mappedMutation(...args) {
+            // Get the commit method from store
+            let commit = this.$store.commit
+            if (namespace) {
+                const module = getModuleByNamespace(this.$store, 'mapMutations', namespace)
+                if (!module) {
+                    return
+                }
+                commit = module.context.commit
+            }
+            return typeof val === 'function' ?
+                val.apply(this, [commit].concat(args)) :
+                commit.apply(this.$store, [val].concat(args))
         }
-        commit = module.context.commit
-      }
-      return typeof val === 'function'
-        ? val.apply(this, [commit].concat(args))
-        : commit.apply(this.$store, [val].concat(args))
-    }
-  })
-  return res
+    })
+    return res
 })
 
 /**
@@ -62,24 +72,24 @@ export const mapMutations = normalizeNamespace((namespace, mutations) => {
  * @return {Object}
  */
 export const mapGetters = normalizeNamespace((namespace, getters) => {
-  const res = {}
-  normalizeMap(getters).forEach(({ key, val }) => {
-    // thie namespace has been mutate by normalizeNamespace
-    val = namespace + val
-    res[key] = function mappedGetter () {
-      if (namespace && !getModuleByNamespace(this.$store, 'mapGetters', namespace)) {
-        return
-      }
-      if (process.env.NODE_ENV !== 'production' && !(val in this.$store.getters)) {
-        console.error(`[vuex] unknown getter: ${val}`)
-        return
-      }
-      return this.$store.getters[val]
-    }
-    // mark vuex getter for devtools
-    res[key].vuex = true
-  })
-  return res
+    const res = {}
+    normalizeMap(getters).forEach(({ key, val }) => {
+        // thie namespace has been mutate by normalizeNamespace
+        val = namespace + val
+        res[key] = function mappedGetter() {
+                if (namespace && !getModuleByNamespace(this.$store, 'mapGetters', namespace)) {
+                    return
+                }
+                if (process.env.NODE_ENV !== 'production' && !(val in this.$store.getters)) {
+                    console.error(`[vuex] unknown getter: ${val}`)
+                    return
+                }
+                return this.$store.getters[val]
+            }
+            // mark vuex getter for devtools
+        res[key].vuex = true
+    })
+    return res
 })
 
 /**
@@ -89,24 +99,24 @@ export const mapGetters = normalizeNamespace((namespace, getters) => {
  * @return {Object}
  */
 export const mapActions = normalizeNamespace((namespace, actions) => {
-  const res = {}
-  normalizeMap(actions).forEach(({ key, val }) => {
-    res[key] = function mappedAction (...args) {
-      // get dispatch function from store
-      let dispatch = this.$store.dispatch
-      if (namespace) {
-        const module = getModuleByNamespace(this.$store, 'mapActions', namespace)
-        if (!module) {
-          return
+    const res = {}
+    normalizeMap(actions).forEach(({ key, val }) => {
+        res[key] = function mappedAction(...args) {
+            // get dispatch function from store
+            let dispatch = this.$store.dispatch
+            if (namespace) {
+                const module = getModuleByNamespace(this.$store, 'mapActions', namespace)
+                if (!module) {
+                    return
+                }
+                dispatch = module.context.dispatch
+            }
+            return typeof val === 'function' ?
+                val.apply(this, [dispatch].concat(args)) :
+                dispatch.apply(this.$store, [val].concat(args))
         }
-        dispatch = module.context.dispatch
-      }
-      return typeof val === 'function'
-        ? val.apply(this, [dispatch].concat(args))
-        : dispatch.apply(this.$store, [val].concat(args))
-    }
-  })
-  return res
+    })
+    return res
 })
 
 /**
@@ -115,10 +125,10 @@ export const mapActions = normalizeNamespace((namespace, actions) => {
  * @return {Object}
  */
 export const createNamespacedHelpers = (namespace) => ({
-  mapState: mapState.bind(null, namespace),
-  mapGetters: mapGetters.bind(null, namespace),
-  mapMutations: mapMutations.bind(null, namespace),
-  mapActions: mapActions.bind(null, namespace)
+    mapState: mapState.bind(null, namespace),
+    mapGetters: mapGetters.bind(null, namespace),
+    mapMutations: mapMutations.bind(null, namespace),
+    mapActions: mapActions.bind(null, namespace)
 })
 
 /**
@@ -128,10 +138,10 @@ export const createNamespacedHelpers = (namespace) => ({
  * @param {Array|Object} map
  * @return {Object}
  */
-function normalizeMap (map) {
-  return Array.isArray(map)
-    ? map.map(key => ({ key, val: key }))
-    : Object.keys(map).map(key => ({ key, val: map[key] }))
+function normalizeMap(map) {
+    return Array.isArray(map) ?
+        map.map(key => ({ key, val: key })) :
+        Object.keys(map).map(key => ({ key, val: map[key] }))
 }
 
 /**
@@ -139,16 +149,16 @@ function normalizeMap (map) {
  * @param {Function} fn
  * @return {Function}
  */
-function normalizeNamespace (fn) {
-  return (namespace, map) => {
-    if (typeof namespace !== 'string') {
-      map = namespace
-      namespace = ''
-    } else if (namespace.charAt(namespace.length - 1) !== '/') {
-      namespace += '/'
+function normalizeNamespace(fn) {
+    return (namespace, map) => {
+        if (typeof namespace !== 'string') {
+            map = namespace
+            namespace = ''
+        } else if (namespace.charAt(namespace.length - 1) !== '/') {
+            namespace += '/'
+        }
+        return fn(namespace, map)
     }
-    return fn(namespace, map)
-  }
 }
 
 /**
@@ -158,10 +168,10 @@ function normalizeNamespace (fn) {
  * @param {String} namespace
  * @return {Object}
  */
-function getModuleByNamespace (store, helper, namespace) {
-  const module = store._modulesNamespaceMap[namespace]
-  if (process.env.NODE_ENV !== 'production' && !module) {
-    console.error(`[vuex] module namespace not found in ${helper}(): ${namespace}`)
-  }
-  return module
+function getModuleByNamespace(store, helper, namespace) {
+    const module = store._modulesNamespaceMap[namespace]
+    if (process.env.NODE_ENV !== 'production' && !module) {
+        console.error(`[vuex] module namespace not found in ${helper}(): ${namespace}`)
+    }
+    return module
 }

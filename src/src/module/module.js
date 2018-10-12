@@ -18,6 +18,7 @@ export default class Module {
     return !!this._rawModule.namespaced
   }
 
+  // 在当前模块的 _children中添加一个子模块 
   addChild (key, module) {
     this._children[key] = module
   }

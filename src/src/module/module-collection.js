@@ -13,6 +13,12 @@ export default class ModuleCollection {
     }, this.root)
   }
 
+  // 根据 各模块的 namespace 形成模块的路径 
+  /**
+   * [ 'a' , 'aa' , 'aaa'] 中 全有 namespaced:true ，
+   * [ 'a' , 'ab' , 'aba'] 中 全有 'ab' 的 namespaced:false ，  a => "a"; 'ab' => 'a'; 'aba' => 'a/aba'
+   * @param {*} path 
+   */
   getNamespace (path) {
     let module = this.root
     return path.reduce((namespace, key) => {
@@ -34,13 +40,21 @@ export default class ModuleCollection {
     if (path.length === 0) {
       this.root = newModule
     } else {
+      // 当开始注册子模块的时候 path 肯定有值。
+      //  
       const parent = this.get(path.slice(0, -1))
+
+      // 调用父模块 module.addChild去添加当前子模块，
+      // 此时模块名称为已经在 this.register(path.concat(key), rawChildModule, runtime) 中path.concat(key) 将当前模块key添加到path的最后
       parent.addChild(path[path.length - 1], newModule)
     }
 
     // register nested modules
     if (rawModule.modules) {
+      // 遍历处理子模块
       forEachValue(rawModule.modules, (rawChildModule, key) => {
+        // path.concat(key) 将当前处理的子模块的 模块名添加到path的最后，
+        // 所以我们在  parent.addChild(path[path.length - 1], newModule) 中使用 path[path.length - 1] 就可以获取当前处理的子模块的模块key
         this.register(path.concat(key), rawChildModule, runtime)
       })
     }
