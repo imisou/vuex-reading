@@ -12,47 +12,46 @@ let Vue // bind on install
 
   Store中包含 一个 ModuleConllection 然后 包含对个 module树
 
-    store = {
-        _commiting : false,
-        // 存放整个module树
-        _modules :{
-            root : {      // Module
-                a: xxx    // Module
-            }
+store = {
+    _commiting : false,
+    // 存放整个module树
+    _modules :{
+        root : {      // Module
+            a: xxx    // Module
+        }
+    },
+    // 按照模块全路径保存所有的局部命名 的 模块
+    _modulesNamespaceMap : {
+        ‘a/’ : ModuleA,
+        'a/aa' : ModuleAA
+    },
+    _mutations : {
+        'a/aa/commit1' : function
+    },
+    _actions : {
+        'a/aa/action1' : function
+    },
+    _wrappedGetters : {
+        'a/aa/getter1' : function
+    },
+    // 通过一个computed 去 处理所有的计算属性的依赖关系
+    _vm : {            // Vue实例对象  主要关注 data属性和 computed属性
+        data : {
+            $$state : store
         },
-        // 按照模块全路径保存所有的局部命名 的 模块
-        _modulesNamespaceMap : {
-            ‘a/’ : ModuleA,
-            'a/aa' : ModuleAA
-        },
-        _mutations : {
-            'a/aa/commit1' : function
-        },
-        _actions : {
-            'a/aa/action1' : function
-        },
-        _wrappedGetters : {
-            'a/aa/getter1' : function
-        },
+        computed:{
+            ... store._wrappedGetters
+        }
+    },
+    // 两个实例方法  
+    commit  : function ,
+    dispatch : function ,
+    getters  : {}
 
-        // 通过一个computed 去 处理所有的计算属性的依赖关系
-        _vm : {            // Vue实例对象  主要关注 data属性和 computed属性
-            data : {
-                $$state : store
-            },
-            computed:{
-                ... store._wrappedGetters
-            }
-        },
+}
 
-
-        // 两个实例方法  
-        commit  : function ,
-        dispatch : function ,
-        getters  : {}
-
-    
-    }
+    重点： 
+        . 如何防止state被修改
  
  */
 export class Store {
@@ -63,63 +62,51 @@ export class Store {
         if (!Vue && typeof window !== 'undefined' && window.Vue) {
             install(window.Vue)
         }
-
         if (process.env.NODE_ENV !== 'production') {
             assert(Vue, `must call Vue.use(Vuex) before creating a store instance.`)
             assert(typeof Promise !== 'undefined', `vuex requires a Promise polyfill in this browser.`)
             assert(this instanceof Store, `store must be called with the new operator.`)
         }
-
         const {
             plugins = [],
                 strict = false
-        } = options
-
+        } = options;
         // store internal state
         this._committing = false
-        this._actions = Object.create(null)
-        this._actionSubscribers = []
-        this._mutations = Object.create(null)
-        this._wrappedGetters = Object.create(null)
+        this._actions = Object.create(null);
+        this._actionSubscribers = [];
+        this._mutations = Object.create(null);
+        this._wrappedGetters = Object.create(null);
         // 保存了当前store的 module树  root -> module1 | module2
-        this._modules = new ModuleCollection(options)
+        this._modules = new ModuleCollection(options);
         // 保存了 当前store中所有的 局部命名空间模块 
-        this._modulesNamespaceMap = Object.create(null)
-        this._subscribers = []
-        this._watcherVM = new Vue()
-
+        this._modulesNamespaceMap = Object.create(null);
+        this._subscribers = [];
+        this._watcherVM = new Vue();
         // bind commit and dispatch to self
-        const store = this
-        const { dispatch, commit } = this
+        const store = this;
+        const { dispatch, commit } = this;
         this.dispatch = function boundDispatch(type, payload) {
             return dispatch.call(store, type, payload)
         }
         this.commit = function boundCommit(type, payload, options) {
-            return commit.call(store, type, payload, options)
-        }
-
-        // strict mode
-        this.strict = strict
-
-        const state = this._modules.root.state
-
+                return commit.call(store, type, payload, options)
+            }
+            // strict mode
+        this.strict = strict;
+        const state = this._modules.root.state;
         // init root module.
         // this also recursively registers all sub-modules
         // and collects all module getters inside this._wrappedGetters
-        installModule(this, state, [], this._modules.root)
-
+        installModule(this, state, [], this._modules.root);
         // initialize the store vm, which is responsible for the reactivity
         // (also registers _wrappedGetters as computed properties)
-        resetStoreVM(this, state)
-
+        resetStoreVM(this, state);
         // apply plugins
-        plugins.forEach(plugin => plugin(this))
-
+        plugins.forEach(plugin => plugin(this));
         if (Vue.config.devtools) {
             devtoolPlugin(this)
         }
-
-
     }
 
     get state() {
@@ -132,8 +119,17 @@ export class Store {
         }
     }
 
+    /**
+     * 提交 mutation。options 里可以有 root: true，它允许在命名空间模块里提交根的 mutation
+     * 
+     * @param {*} _type        // commit的路径
+     * @param {*} _payload     // commit的值
+     * @param {*} _options     //commit的配置options 现在只支持 {root:true}
+     * @memberof Store
+     */
     commit(_type, _payload, _options) {
         // check object-style commit
+        // 处理入参 提供两种方式 传递 type, payload, options
         const {
             type,
             payload,
@@ -141,6 +137,7 @@ export class Store {
         } = unifyObjectStyle(_type, _payload, _options)
 
         const mutation = { type, payload }
+            // 根据 type 即 mutation的全路径 获取 处理函数
         const entry = this._mutations[type]
         if (!entry) {
             if (process.env.NODE_ENV !== 'production') {
@@ -148,8 +145,18 @@ export class Store {
             }
             return
         }
+        // TODO: 为什么不直接回调 entry 而通过_withCommit去回调
         this._withCommit(() => {
+            // 回调处理 调用的 mutation 
             entry.forEach(function commitIterator(handler) {
+                /*
+                为什么此时传递的只有 payload，而我们mutation的入参为 两个 ({state,commit,getters},payload)
+                因为这时候调用的是 store._mutations('a/aa/mutation1',function)中的方法，而不是直接调用module.mutation我们定义的mutation
+                而在registerMutation()中  
+                entry.push(function wrappedMutationHandler(payload) {    //这个payload 才是这是的入参 payload
+                    handler.call(store, local.state, payload)
+                })
+                */
                 handler(payload)
             })
         })
@@ -168,6 +175,7 @@ export class Store {
 
     dispatch(_type, _payload) {
         // check object-style dispatch
+        // 处理入参 提供两种方式 传递 type, payload, options
         const {
             type,
             payload
@@ -183,12 +191,23 @@ export class Store {
         }
 
         this._actionSubscribers.forEach(sub => sub(action, this.state))
-
+            // 回调action
         return entry.length > 1 ?
             Promise.all(entry.map(handler => handler(payload))) :
             entry[0](payload)
     }
 
+    /**
+     * 订阅store.mutation
+     * 
+        store.subscribe((mutation, state) => {
+            console.log(mutation.type)
+            onsole.log(mutation.payload)
+        })
+     * @param {*} fn
+     * @returns
+     * @memberof Store
+     */
     subscribe(fn) {
         return genericSubscribe(fn, this._subscribers)
     }
@@ -210,52 +229,111 @@ export class Store {
         })
     }
 
+    // 
+    /**
+     * 注册一个动态模块
+     * 在这里面我们可以看到如何去生成一个module的过程
+     *  三步： 
+     *      1. 注册module
+     *      2. 安装module (处理 state,getter,mutations,actions)
+     *      3. 重置 vm
+     *  this._modules.register(path, rawModule)
+     *  installModule(this, this.state, path, this._modules.get(path), options.preserveState);
+     *  resetStoreVM(this, this.state)
+     * 
+     * @param {*} path                  // 模块的路径  'a' 或者 ['a','ab']
+     * @param {*} rawModule             // 模块对象
+     * @param {*} [options={}]
+     * @memberof Store
+     */
     registerModule(path, rawModule, options = {}) {
+        // 如果模块的路径字符串  那么就需要转换成数组
         if (typeof path === 'string') path = [path]
 
         if (process.env.NODE_ENV !== 'production') {
             assert(Array.isArray(path), `module path must be a string or an Array.`)
             assert(path.length > 0, 'cannot register the root module by using registerModule.')
         }
-
+        // 注册子模块 在store._modules中添加此模块，并生产module对象
         this._modules.register(path, rawModule)
-        installModule(this, this.state, path, this._modules.get(path), options.preserveState)
-            // reset store to update getters...
+            // 初始化子模块，处理 state,getter,mutations,actions
+        installModule(this, this.state, path, this._modules.get(path), options.preserveState);
+        // reset store to update getters...
+        // 因为 所有的getters都是通过vm.data处理的，所以新的模块需要重置vm
         resetStoreVM(this, this.state)
     }
 
+    /**
+     * 卸载一个module
+     * @param {*} path
+     * @memberof Store
+     */
     unregisterModule(path) {
+        // 同样先处理路径
         if (typeof path === 'string') path = [path]
 
         if (process.env.NODE_ENV !== 'production') {
             assert(Array.isArray(path), `module path must be a string or an Array.`)
         }
 
+        // 调用卸载module
         this._modules.unregister(path)
+            // Vue.delete store.state上该模块的 state
         this._withCommit(() => {
-            const parentState = getNestedState(this.state, path.slice(0, -1))
-            Vue.delete(parentState, path[path.length - 1])
-        })
+                // 通过路径 ['a','ab']  获取 store.state['a']['ab']的父state对象
+                const parentState = getNestedState(this.state, path.slice(0, -1))
+                    // 根据 store.state 删除此state
+                Vue.delete(parentState, path[path.length - 1])
+            })
+            // 重置Store, 因为需要删除 store._actions,xx.__mutations... 保存的当前模块的全路径方法，
         resetStore(this)
     }
 
+    /*
+        热重载
+        其实热重载的概念很简单.
+        1. 深度遍历新的options，然后将其actions、getters、mutations属性变成 moudle._rawModule.xxx
+        2. resetStore 重置 store._mutations,_actions... 和重置 vm
+
+        不需要重新register注册此模块树
+    */
     hotUpdate(newOptions) {
+        // 
         this._modules.update(newOptions)
         resetStore(this, true)
     }
 
+    /**
+     * 我们每次在修改state的时候 如commit replaceState等，不是直接调用 store._mutations的方法  而是通过 this._withCommit( function(){ hander() })去处理。
+     * 为什么？
+     * 因为每次执行状态state的修改的时候 保证this._committing为true,那么在追踪状态变化的时候，如果这个不为true，那么说明这次修改不是正确的。
+     * 而在 enableStrictMode()即 store.strict = true的时候 store._vm.$watch(this._data.$$state) 如果store._committing不为true就报错
+     * 
+     * @param {*} fn
+     * @memberof Store
+     */
     _withCommit(fn) {
         const committing = this._committing
+            // 保证每次正确修改状态是 this._committing = true
         this._committing = true
         fn()
         this._committing = committing
     }
 }
 
+/**
+ * 添加一个 对于mutation、action的订阅函数，
+    那么我们在mutation调用commit的时候 就会调用 遍历subs，并回调所有的方法 入参为当前的 mutation 和 store.state
+ * @author guzhanghua
+ * @param {*} fn
+ * @param {*} subs
+ * @returns
+ */
 function genericSubscribe(fn, subs) {
     if (subs.indexOf(fn) < 0) {
         subs.push(fn)
     }
+    // 返回一个 函数，如果执行这个函数则移除此订阅方法
     return () => {
         const i = subs.indexOf(fn)
         if (i > -1) {
@@ -263,7 +341,12 @@ function genericSubscribe(fn, subs) {
         }
     }
 }
-
+/**
+ * 重置Store树，此时不知重置 vm 还重置 _actions _mutations _wrappers....
+ * @author guzhanghua
+ * @param {*} store
+ * @param {*} hot
+ */
 function resetStore(store, hot) {
     store._actions = Object.create(null)
     store._mutations = Object.create(null)
@@ -303,7 +386,7 @@ function resetStoreVM(store, state, hot) {
     forEachValue(wrappedGetters, (fn, key) => {
         // use computed to leverage its lazy-caching mechanism
         computed[key] = () => fn(store)
-        // 将 store._wrappedGetters 的所有属性 代理到 store.getters上
+            // 将 store._wrappedGetters 的所有属性 代理到 store.getters上
         Object.defineProperty(store.getters, key, {
             get: () => store._vm[key],
             enumerable: true // for local getters
@@ -315,13 +398,13 @@ function resetStoreVM(store, state, hot) {
     // some funky global mixins
     const silent = Vue.config.silent
     Vue.config.silent = true
-    // 生成一个空的Vue实例，然后将所有的getters的属性 作为计算属性 存放在 _vm上
-    store._vm = new Vue({
-        data: {
-            $$state: state
-        },
-        computed
-    })
+        // 生成一个空的Vue实例，然后将所有的getters的属性 作为计算属性 存放在 _vm上
+store._vm = new Vue({
+    data: {
+        $$state: state
+    },
+    computed
+})
     Vue.config.silent = silent
 
     // enable strict mode for new vm
@@ -351,11 +434,11 @@ function resetStoreVM(store, state, hot) {
   我们知道Module中存在 namespaced属性，如果为 true , 使其成为带命名空间的模块. 所有 getter、action 及 mutation 都会自动根据模块注册的路径调整命名。
 
 
- * @param {*} store 
- * @param {*} rootState 
- * @param {*} path 
- * @param {*} module 
- * @param {*} hot 
+ * @param {*} store                 // store对象
+ * @param {*} rootState             // 跟state
+ * @param {*} path                  // 模块路径 ['a','ab']
+ * @param {*} module                // 模块实例化对象
+ * @param {*} hot                   // 是否保留原来的state
  */
 function installModule(store, rootState, path, module, hot) {
     // 在Store中调用installModule() 中 installModule(this, state, [], this._modules.root) 
@@ -363,7 +446,7 @@ function installModule(store, rootState, path, module, hot) {
     // 然后深度遍历 module树的时候 path.concat(key) 使得变成 [ 'a' , 'aa']
     // 如果path.length === 0 说明这是 根模块
     const isRoot = !path.length
-    
+
     // 调用module 的 getNamespace 然后根据子模块 namespaced 去形成 各模块的路径
     //  [ 'a' , 'aa' , 'aaa'] 中 全有 namespaced:true ，           a => "a"; 'aa' => 'a/aa'; 'aaa' => 'a/aa/aaa'
     //  [ 'a' , 'ab' , 'aba'] 中 全有 'ab' 的 namespaced:false ，  a => "a"; 'ab' => 'a'; 'aba' => 'a/aba'
@@ -447,7 +530,7 @@ function makeLocalContext(store, namespace, path) {
         // 生成根模块和各局部命名空间模块 的commit方法，使得在局部命名空间模块 不需要全路径调用
         commit: noNamespace ? store.commit : (_type, _payload, _options) => {
             const args = unifyObjectStyle(_type, _payload, _options)
-            // 获取参数和配置
+                // 获取参数和配置
             const { payload, options } = args
             // 获取提交的路径
             let { type } = args
@@ -592,10 +675,23 @@ function getNestedState(state, path) {
         state
 }
 
+
+/**
+ * 处理 commit , dispatch 中 入参可以为 3个参数type, payload, options；也可以为两个参数 { type: type , ...payload}, { options: options }
+ * @author guzhanghua
+ * @param {*} type
+ * @param {*} payload
+ * @param {*} options
+ * @returns
+ */
 function unifyObjectStyle(type, payload, options) {
+    // 如果第一个参数为对象，且type.type存在 那么说明这是 第二种入参方式 
     if (isObject(type) && type.type) {
+        // 第二个参数变成了 配置options
         options = payload
+            // 第一个参数 变成 整个payload, 所以 payload.type === type  
         payload = type
+            // 第一个参数的 type.type 成为 type
         type = type.type
     }
 

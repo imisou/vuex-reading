@@ -6,8 +6,8 @@
  * @param {Function} f
  * @return {*}
  */
-export function find (list, f) {
-  return list.filter(f)[0]
+export function find(list, f) {
+    return list.filter(f)[0]
 }
 
 /**
@@ -19,49 +19,49 @@ export function find (list, f) {
  * @param {Array<Object>} cache
  * @return {*}
  */
-export function deepCopy (obj, cache = []) {
-  // just return if obj is immutable value
-  if (obj === null || typeof obj !== 'object') {
-    return obj
-  }
+export function deepCopy(obj, cache = []) {
+    // just return if obj is immutable value
+    if (obj === null || typeof obj !== 'object') {
+        return obj
+    }
 
-  // if obj is hit, it is in circular structure
-  const hit = find(cache, c => c.original === obj)
-  if (hit) {
-    return hit.copy
-  }
+    // if obj is hit, it is in circular structure
+    const hit = find(cache, c => c.original === obj)
+    if (hit) {
+        return hit.copy
+    }
 
-  const copy = Array.isArray(obj) ? [] : {}
-  // put the copy into cache at first
-  // because we want to refer it in recursive deepCopy
-  cache.push({
-    original: obj,
-    copy
-  })
+    const copy = Array.isArray(obj) ? [] : {}
+        // put the copy into cache at first
+        // because we want to refer it in recursive deepCopy
+    cache.push({
+        original: obj,
+        copy
+    })
 
-  Object.keys(obj).forEach(key => {
-    copy[key] = deepCopy(obj[key], cache)
-  })
+    Object.keys(obj).forEach(key => {
+        copy[key] = deepCopy(obj[key], cache)
+    })
 
-  return copy
+    return copy
 }
 
 /**
  * forEach for object
  * 循环遍历
  */
-export function forEachValue (obj, fn) {
-  Object.keys(obj).forEach(key => fn(obj[key], key))
+export function forEachValue(obj, fn) {
+    Object.keys(obj).forEach(key => fn(obj[key], key))
 }
 
-export function isObject (obj) {
-  return obj !== null && typeof obj === 'object'
+export function isObject(obj) {
+    return obj !== null && typeof obj === 'object'
 }
 
-export function isPromise (val) {
-  return val && typeof val.then === 'function'
+export function isPromise(val) {
+    return val && typeof val.then === 'function'
 }
 
-export function assert (condition, msg) {
-  if (!condition) throw new Error(`[vuex] ${msg}`)
+export function assert(condition, msg) {
+    if (!condition) throw new Error(`[vuex] ${msg}`)
 }
