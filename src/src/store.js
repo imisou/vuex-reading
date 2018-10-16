@@ -173,6 +173,13 @@ export class Store {
         }
     }
 
+    /**
+     * 提供 this.$store.dispatch('a/ab/rootAction')去访问action的方法
+     
+     * @param {*} _type        action的全路径名称
+     * @param {*} _payload     action的参数
+     * @returns
+     */
     dispatch(_type, _payload) {
         // check object-style dispatch
         // 处理入参 提供两种方式 传递 type, payload, options
@@ -180,7 +187,6 @@ export class Store {
             type,
             payload
         } = unifyObjectStyle(_type, _payload)
-
         const action = { type, payload }
         const entry = this._actions[type]
         if (!entry) {
@@ -189,7 +195,6 @@ export class Store {
             }
             return
         }
-
         this._actionSubscribers.forEach(sub => sub(action, this.state))
             // 回调action
         return entry.length > 1 ?
@@ -399,12 +404,12 @@ function resetStoreVM(store, state, hot) {
     const silent = Vue.config.silent
     Vue.config.silent = true
         // 生成一个空的Vue实例，然后将所有的getters的属性 作为计算属性 存放在 _vm上
-store._vm = new Vue({
-    data: {
-        $$state: state
-    },
-    computed
-})
+    store._vm = new Vue({
+        data: {
+            $$state: state
+        },
+        computed
+    })
     Vue.config.silent = silent
 
     // enable strict mode for new vm
@@ -510,12 +515,20 @@ function makeLocalContext(store, namespace, path) {
     const noNamespace = namespace === ''
 
     const local = {
-        // 生成根模块和各局部命名空间模块 的 dispatch方法，使得在局部命名空间模块 不需要全路径调用
+
+        /*
+            生成根模块和各局部命名空间模块 的 dispatch方法，使得在局部命名空间模块 不需要全路径调用
+            也是提供我们在 模块action中 
+            increment: ({ dispatch,commit,getters,state,rootGetters,rootState } , payload, cb ) => commit('increment')
+            dispatch去访问模块中其他的action
+            dispatch('rootAction',{ name:'xx'},{ root: false})   // root:true去访问全局的action
+            ===
+            dispatch('a/ab/rootAction',{ name:'xx'},{ root: true})
+         */
         dispatch: noNamespace ? store.dispatch : (_type, _payload, _options) => {
             const args = unifyObjectStyle(_type, _payload, _options)
             const { payload, options } = args
             let { type } = args
-
             if (!options || !options.root) {
                 type = namespace + type
                 if (process.env.NODE_ENV !== 'production' && !store._actions[type]) {
@@ -523,11 +536,19 @@ function makeLocalContext(store, namespace, path) {
                     return
                 }
             }
-
             return store.dispatch(type, payload)
         },
 
-        // 生成根模块和各局部命名空间模块 的commit方法，使得在局部命名空间模块 不需要全路径调用
+        /*
+            生成根模块和各局部命名空间模块 的 commit方法，使得在局部命名空间模块 不需要全路径调用
+            也是提供我们在 模块action中 
+            increment: ({ dispatch,commit,getters,state,rootGetters,rootState } , payload, cb ) => commit('increment')
+            commit去访问各自模块中其他的mutation
+
+            commit('decrement',{ name:'xx'},{ root: false})   
+            ===
+            commit('a/ab/decrement',{ name:'xx'},{ root: true})    // root:true去访问全局的commit
+         */
         commit: noNamespace ? store.commit : (_type, _payload, _options) => {
             const args = unifyObjectStyle(_type, _payload, _options)
                 // 获取参数和配置
